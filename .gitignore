@@ -1,0 +1,14 @@
+# Executaveis compilados
+*.exe
+*.dll
+*.o
+*.obj
+
+# Dados locais dos clientes
+dados/*
+
+# Preserva a pasta de dados no Git
+!dados/.gitkeep
+
+# Configuracoes locais do editor
+.vscode/
