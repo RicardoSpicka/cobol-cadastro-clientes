@@ -2,82 +2,140 @@
 IDENTIFICATION DIVISION.
 PROGRAM-ID. CADCLI.
 
+*> ==================================================
+*> CONFIGURACAO DO AMBIENTE E DOS ARQUIVOS
+*> ==================================================
 ENVIRONMENT DIVISION.
 INPUT-OUTPUT SECTION.
 FILE-CONTROL.
+
+    *> Arquivo principal: cadastro de clientes
     SELECT ARQUIVO-CLIENTES
         ASSIGN TO "dados/CLIENTES.DAT"
         ORGANIZATION IS SEQUENTIAL
         FILE STATUS IS WS-FILE-STATUS.
+
+    *> Arquivo temporario: recebe os dados durante
+    *> alteracoes e exclusoes antes da substituicao
     SELECT ARQUIVO-TEMPORARIO
         ASSIGN TO "dados/CLIENTES.TMP"
         ORGANIZATION IS SEQUENTIAL
         FILE STATUS IS WS-STATUS-TEMP.
+
+    *> Copia de seguranca do cadastro principal
     SELECT ARQUIVO-BACKUP
         ASSIGN TO "dados/CLIENTES.BAK"
         ORGANIZATION IS SEQUENTIAL
         FILE STATUS IS WS-STATUS-BACKUP.
+
+    *> Arquivo anterior, preservado na substituicao
     SELECT ARQUIVO-RECUPERACAO
         ASSIGN TO "dados/CLIENTES.OLD"
         ORGANIZATION IS SEQUENTIAL
         FILE STATUS IS WS-STATUS-OLD.
 
-DATA DIVISION.
 
+*> ==================================================
+*> DEFINICAO DOS REGISTROS DOS ARQUIVOS
+*> ==================================================
+DATA DIVISION.
 FILE SECTION.
+
+*> Registro principal do cliente: 114 caracteres
 FD ARQUIVO-CLIENTES.
 01 REGISTRO-CLIENTE.
-   05 ARQ-CODIGO    PIC X(5).
-   05 ARQ-NOME      PIC X(40).
-   05 ARQ-CPF       PIC X(14).
-   05 ARQ-TELEFONE  PIC X(15).
-   05 ARQ-EMAIL     PIC X(40).
+   05 ARQ-CODIGO       PIC X(5).
+   05 ARQ-NOME         PIC X(40).
+   05 ARQ-CPF          PIC X(14).
+   05 ARQ-TELEFONE     PIC X(15).
+   05 ARQ-EMAIL        PIC X(40).
+
+*> Registro utilizado no processamento temporario
 FD ARQUIVO-TEMPORARIO.
 01 REGISTRO-TEMPORARIO.
-   05 TMP-CODIGO    PIC X(5).
-   05 TMP-NOME      PIC X(40).
-   05 TMP-CPF       PIC X(14).
-   05 TMP-TELEFONE  PIC X(15).
-   05 TMP-EMAIL     PIC X(40).
-   FD ARQUIVO-BACKUP.
+   05 TMP-CODIGO       PIC X(5).
+   05 TMP-NOME         PIC X(40).
+   05 TMP-CPF          PIC X(14).
+   05 TMP-TELEFONE     PIC X(15).
+   05 TMP-EMAIL        PIC X(40).
+
+*> Registro da copia de seguranca
+FD ARQUIVO-BACKUP.
 01 REGISTRO-BACKUP.
-   05 BAK-CODIGO    PIC X(5).
-   05 BAK-NOME      PIC X(40).
-   05 BAK-CPF       PIC X(14).
-   05 BAK-TELEFONE  PIC X(15).
-   05 BAK-EMAIL     PIC X(40).
+   05 BAK-CODIGO       PIC X(5).
+   05 BAK-NOME         PIC X(40).
+   05 BAK-CPF          PIC X(14).
+   05 BAK-TELEFONE     PIC X(15).
+   05 BAK-EMAIL        PIC X(40).
+
+*> Registro preservado para recuperacao manual
 FD ARQUIVO-RECUPERACAO.
 01 REGISTRO-RECUPERACAO PIC X(114).
 
+
 WORKING-STORAGE SECTION.
-01 WS-ARQUIVO-ABERTO PIC X VALUE "N".
-01 WS-FIM-ARQUIVO PIC X VALUE "N".
-01 WS-CODIGO-BUSCA PIC X(5).
-01 WS-CLIENTE-ENCONTRADO PIC X VALUE "N".
-01 WS-CODIGO-ALTERAR PIC X(5).
-01 WS-CLIENTE-ALTERADO PIC X VALUE "N".
-01 WS-FILE-STATUS PIC XX.
-01 WS-STATUS-OLD PIC XX.
-01 WS-BACKUP-OK PIC X VALUE "N".
-01 WS-QTD-ORIGINAL PIC 9(9) VALUE ZERO.
-01 WS-QTD-BACKUP PIC 9(9) VALUE ZERO.
-01 WS-STATUS-BACKUP PIC XX.
-01 WS-ERRO-BACKUP PIC X VALUE "N".
-01 WS-LEITURA-OK PIC X VALUE "N".
-01 WS-STATUS-LEITURA PIC XX.
-01 WS-ERRO-ALTERACAO PIC X VALUE "N".
-01 WS-STATUS-TEMP PIC XX.
-01 WS-OPCAO PIC X VALUE SPACE.
-01 WS-MAIOR-CODIGO PIC X(5) VALUE "00000".
-01 WS-PROXIMO-CODIGO PIC 9(5) VALUE ZERO.
-01 WS-CODIGO-DISPONIVEL PIC X VALUE "N".
-01 WS-SUBSTITUICAO-OK PIC X VALUE "N".
+*> ==================================================
+*> CONTROLE GERAL DO PROGRAMA
+*> ==================================================
+01 WS-CONTROLE-GERAL.
+   05 WS-OPCAO                PIC X VALUE SPACE.
+   05 WS-ARQUIVO-ABERTO       PIC X VALUE "N".
+   05 WS-FIM-ARQUIVO          PIC X VALUE "N".
+   05 WS-FILE-STATUS          PIC XX.
+
+*> ==================================================
+*> DADOS DO CLIENTE
+*> ==================================================
 01 WS-CLIENTE.
-   05 WS-CODIGO    PIC X(5).
-   05 WS-NOME      PIC X(40).
-   05 WS-CPF       PIC X(14).
-   05 WS-TELEFONE  PIC X(15).
-   05 WS-EMAIL     PIC X(40).
+   05 WS-CODIGO               PIC X(5).
+   05 WS-NOME                 PIC X(40).
+   05 WS-CPF                  PIC X(14).
+   05 WS-TELEFONE             PIC X(15).
+   05 WS-EMAIL                PIC X(40).
+
+*> ==================================================
+*> CONTROLE DE CONSULTA
+*> ==================================================
+01 WS-CONTROLE-CONSULTA.
+   05 WS-CODIGO-BUSCA         PIC X(5).
+   05 WS-CLIENTE-ENCONTRADO   PIC X VALUE "N".
+
+*> ==================================================
+*> CONTROLE DE ALTERACAO E EXCLUSAO
+*> ==================================================
+01 WS-CONTROLE-MANUTENCAO.
+   05 WS-CODIGO-ALTERAR       PIC X(5).
+   05 WS-CLIENTE-ALTERADO     PIC X VALUE "N".
+   05 WS-ERRO-ALTERACAO       PIC X VALUE "N".
+   05 WS-STATUS-TEMP          PIC XX.
+
+*> ==================================================
+*> GERACAO AUTOMATICA DE CODIGO
+*> ==================================================
+01 WS-CONTROLE-CODIGO.
+   05 WS-MAIOR-CODIGO         PIC X(5) VALUE "00000".
+   05 WS-PROXIMO-CODIGO       PIC 9(5) VALUE ZERO.
+   05 WS-CODIGO-DISPONIVEL    PIC X VALUE "N".
+
+*> ==================================================
+*> CONTROLE DE BACKUP
+*> ==================================================
+01 WS-CONTROLE-BACKUP.
+   05 WS-BACKUP-OK            PIC X VALUE "N".
+   05 WS-QTD-ORIGINAL         PIC 9(9) VALUE ZERO.
+   05 WS-QTD-BACKUP           PIC 9(9) VALUE ZERO.
+   05 WS-STATUS-BACKUP        PIC XX.
+   05 WS-ERRO-BACKUP          PIC X VALUE "N".
+   05 WS-LEITURA-OK           PIC X VALUE "N".
+   05 WS-STATUS-LEITURA       PIC XX.
+   05 WS-ERRO-LEITURA-CODIGO  PIC X VALUE "N".
+   
+*> ==================================================
+*> CONTROLE DE SUBSTITUICAO E RECUPERACAO
+*> ==================================================
+01 WS-CONTROLE-SUBSTITUICAO.
+   05 WS-SUBSTITUICAO-OK      PIC X VALUE "N".
+   05 WS-STATUS-OLD           PIC XX.
 
 PROCEDURE DIVISION.
 PRINCIPAL.
@@ -92,6 +150,9 @@ PRINCIPAL.
     STOP RUN.
 
 
+*> ==================================================
+*> ROTINAS PRINCIPAIS            
+*> ==================================================
 EXIBIR-MENU.
     DISPLAY SPACE
     DISPLAY "=================================="
@@ -126,7 +187,6 @@ EXIBIR-MENU.
 
 
 CADASTRAR-CLIENTE.
-
     PERFORM ABRIR-ARQUIVO-CLIENTES
 
     IF WS-ARQUIVO-ABERTO = "N"
@@ -171,94 +231,6 @@ CADASTRAR-CLIENTE.
         DISPLAY "Erro ao gravar cliente. Status: "
             WS-FILE-STATUS
     END-IF.
-
-
-CALCULAR-PROXIMO-CODIGO.
-
-    MOVE "00000" TO WS-MAIOR-CODIGO
-    MOVE "N" TO WS-CODIGO-DISPONIVEL
-    MOVE "N" TO WS-FIM-ARQUIVO
-
-    IF WS-ARQUIVO-ABERTO = "S"
-        CLOSE ARQUIVO-CLIENTES
-        MOVE "N" TO WS-ARQUIVO-ABERTO
-    END-IF
-
-    OPEN INPUT ARQUIVO-CLIENTES
-
-    IF WS-FILE-STATUS NOT = "00"
-        DISPLAY "Erro ao ler cadastro: " WS-FILE-STATUS
-        EXIT PARAGRAPH
-    END-IF
-
-    PERFORM UNTIL WS-FIM-ARQUIVO = "S"
-
-        READ ARQUIVO-CLIENTES
-
-        EVALUATE WS-FILE-STATUS
-            WHEN "00"
-                IF ARQ-CODIGO > WS-MAIOR-CODIGO
-                    MOVE ARQ-CODIGO TO WS-MAIOR-CODIGO
-                END-IF
-
-            WHEN "10"
-                MOVE "S" TO WS-FIM-ARQUIVO
-
-            WHEN OTHER
-                DISPLAY "Erro durante a leitura: "
-                    WS-FILE-STATUS
-                MOVE "S" TO WS-FIM-ARQUIVO
-                MOVE "N" TO WS-CODIGO-DISPONIVEL
-        END-EVALUATE
-
-    END-PERFORM
-
-    CLOSE ARQUIVO-CLIENTES
-
-    IF WS-FILE-STATUS NOT = "00"
-        DISPLAY "Erro ao fechar cadastro: " WS-FILE-STATUS
-        EXIT PARAGRAPH
-    END-IF
-
-    MOVE WS-MAIOR-CODIGO TO WS-PROXIMO-CODIGO
-
-    IF WS-PROXIMO-CODIGO = 99999
-        DISPLAY "Limite de codigos atingido."
-        EXIT PARAGRAPH
-    END-IF
-
-    ADD 1 TO WS-PROXIMO-CODIGO
-    MOVE WS-PROXIMO-CODIGO TO WS-CODIGO
-
-    OPEN EXTEND ARQUIVO-CLIENTES
-
-    IF WS-FILE-STATUS = "00"
-        MOVE "S" TO WS-ARQUIVO-ABERTO
-        MOVE "S" TO WS-CODIGO-DISPONIVEL
-    ELSE
-        DISPLAY "Erro ao reabrir cadastro: "
-            WS-FILE-STATUS
-    END-IF.
-
-
-ABRIR-ARQUIVO-CLIENTES.
-
-    IF WS-ARQUIVO-ABERTO = "S"
-        EXIT PARAGRAPH
-    END-IF
-
-    OPEN EXTEND ARQUIVO-CLIENTES
-
-    IF WS-FILE-STATUS = "35"
-        OPEN OUTPUT ARQUIVO-CLIENTES
-    END-IF
-
-    IF WS-FILE-STATUS = "00"
-        MOVE "S" TO WS-ARQUIVO-ABERTO
-    ELSE
-        DISPLAY "Erro ao abrir arquivo. Status: "
-            WS-FILE-STATUS
-    END-IF.    
 
 
 LISTAR-CLIENTES.   
@@ -473,6 +445,201 @@ ALTERAR-CLIENTE.
         
     END-IF.
 
+EXCLUIR-CLIENTE.
+    DISPLAY SPACE
+    DISPLAY "=== EXCLUSAO DE CLIENTE ==="
+    DISPLAY "Digite o codigo do cliente: "
+    ACCEPT WS-CODIGO-ALTERAR
+
+    IF WS-ARQUIVO-ABERTO = "S"
+        CLOSE ARQUIVO-CLIENTES
+        MOVE "N" TO WS-ARQUIVO-ABERTO
+    END-IF
+
+    OPEN INPUT ARQUIVO-CLIENTES
+
+    IF WS-FILE-STATUS NOT = "00"
+        DISPLAY "Erro ao abrir arquivo: " WS-FILE-STATUS
+        EXIT PARAGRAPH
+    END-IF
+
+    OPEN OUTPUT ARQUIVO-TEMPORARIO
+
+    IF WS-STATUS-TEMP NOT = "00"
+        DISPLAY "Erro ao criar arquivo temporario: "
+            WS-STATUS-TEMP
+        CLOSE ARQUIVO-CLIENTES
+        EXIT PARAGRAPH
+    END-IF
+
+    MOVE "N" TO WS-FIM-ARQUIVO
+    MOVE "N" TO WS-CLIENTE-ALTERADO
+    MOVE "N" TO WS-ERRO-ALTERACAO
+
+    PERFORM UNTIL WS-FIM-ARQUIVO = "S"
+        READ ARQUIVO-CLIENTES
+
+        EVALUATE WS-FILE-STATUS
+            WHEN "00"
+                IF ARQ-CODIGO = WS-CODIGO-ALTERAR
+                    MOVE "S" TO WS-CLIENTE-ALTERADO
+                    DISPLAY "Cliente selecionado: " ARQ-NOME
+                ELSE
+                    MOVE ARQ-CODIGO TO TMP-CODIGO
+                    MOVE ARQ-NOME TO TMP-NOME
+                    MOVE ARQ-CPF TO TMP-CPF
+                    MOVE ARQ-TELEFONE TO TMP-TELEFONE
+                    MOVE ARQ-EMAIL TO TMP-EMAIL
+
+                    WRITE REGISTRO-TEMPORARIO
+
+                    IF WS-STATUS-TEMP NOT = "00"
+                        DISPLAY "Erro ao gravar temporario: "
+                            WS-STATUS-TEMP
+                        MOVE "S" TO WS-ERRO-ALTERACAO
+                        MOVE "S" TO WS-FIM-ARQUIVO
+                    END-IF
+                END-IF
+
+            WHEN "10"
+                MOVE "S" TO WS-FIM-ARQUIVO
+
+            WHEN OTHER
+                DISPLAY "Erro ao ler arquivo: "
+                    WS-FILE-STATUS
+                MOVE "S" TO WS-ERRO-ALTERACAO
+                MOVE "S" TO WS-FIM-ARQUIVO
+        END-EVALUATE
+    END-PERFORM
+
+    CLOSE ARQUIVO-CLIENTES
+
+    IF WS-FILE-STATUS NOT = "00"
+        MOVE "S" TO WS-ERRO-ALTERACAO
+    END-IF
+
+    CLOSE ARQUIVO-TEMPORARIO
+
+    IF WS-STATUS-TEMP NOT = "00"
+        MOVE "S" TO WS-ERRO-ALTERACAO
+    END-IF
+
+    IF WS-ERRO-ALTERACAO = "S"
+        DISPLAY "Exclusao cancelada por erro."
+        DISPLAY "Nao execute a substituicao."
+    ELSE
+        IF WS-CLIENTE-ALTERADO = "N"
+            DISPLAY "Cliente nao encontrado."
+        ELSE
+            PERFORM CRIAR-BACKUP
+
+            IF WS-BACKUP-OK = "S"
+                PERFORM SUBSTITUIR-ARQUIVO
+
+                IF WS-SUBSTITUICAO-OK = "S"
+                    DISPLAY "Cliente excluido com sucesso."
+                ELSE
+                    DISPLAY "Exclusao nao concluida."
+                END-IF
+            ELSE
+                DISPLAY "Backup nao validado."
+                DISPLAY "Arquivo original preservado."
+            END-IF
+
+        END-IF
+    END-IF.
+
+
+*> ==================================================
+*> ROTINAS AUXILIARES                                
+*> ==================================================
+CALCULAR-PROXIMO-CODIGO.
+
+    MOVE "N" TO WS-ERRO-LEITURA-CODIGO
+    MOVE "00000" TO WS-MAIOR-CODIGO
+    MOVE "N" TO WS-CODIGO-DISPONIVEL
+    MOVE "N" TO WS-FIM-ARQUIVO
+
+    IF WS-ARQUIVO-ABERTO = "S"
+        CLOSE ARQUIVO-CLIENTES
+        MOVE "N" TO WS-ARQUIVO-ABERTO
+    END-IF
+
+    OPEN INPUT ARQUIVO-CLIENTES
+
+    IF WS-FILE-STATUS NOT = "00"
+        DISPLAY "Erro ao ler cadastro: " WS-FILE-STATUS
+        EXIT PARAGRAPH
+    END-IF
+
+    PERFORM UNTIL WS-FIM-ARQUIVO = "S"
+
+        READ ARQUIVO-CLIENTES
+
+        EVALUATE WS-FILE-STATUS
+            WHEN "00"
+                IF ARQ-CODIGO > WS-MAIOR-CODIGO
+                    MOVE ARQ-CODIGO TO WS-MAIOR-CODIGO
+                END-IF
+
+            WHEN "10"
+                MOVE "S" TO WS-FIM-ARQUIVO
+
+            WHEN OTHER
+                DISPLAY "Erro durante a leitura: "
+                    WS-FILE-STATUS
+                MOVE "S" TO WS-ERRO-LEITURA-CODIGO
+                MOVE "S" TO WS-FIM-ARQUIVO
+                MOVE "N" TO WS-CODIGO-DISPONIVEL
+        END-EVALUATE
+
+    END-PERFORM
+
+    CLOSE ARQUIVO-CLIENTES
+
+    IF WS-FILE-STATUS NOT = "00"
+        DISPLAY "Erro ao fechar cadastro: " WS-FILE-STATUS
+        EXIT PARAGRAPH
+    END-IF
+
+    MOVE WS-MAIOR-CODIGO TO WS-PROXIMO-CODIGO
+
+    IF WS-PROXIMO-CODIGO = 99999
+        DISPLAY "Limite de codigos atingido."
+        EXIT PARAGRAPH
+    END-IF
+
+    ADD 1 TO WS-PROXIMO-CODIGO
+    MOVE WS-PROXIMO-CODIGO TO WS-CODIGO
+
+    OPEN EXTEND ARQUIVO-CLIENTES
+
+    IF WS-FILE-STATUS = "00"
+        MOVE "S" TO WS-ARQUIVO-ABERTO
+        MOVE "S" TO WS-CODIGO-DISPONIVEL
+    ELSE
+        DISPLAY "Erro ao reabrir cadastro: "
+            WS-FILE-STATUS
+    END-IF.
+
+ABRIR-ARQUIVO-CLIENTES.
+    IF WS-ARQUIVO-ABERTO = "S"
+        EXIT PARAGRAPH
+    END-IF
+
+    OPEN EXTEND ARQUIVO-CLIENTES
+
+    IF WS-FILE-STATUS = "35"
+        OPEN OUTPUT ARQUIVO-CLIENTES
+    END-IF
+
+    IF WS-FILE-STATUS = "00"
+        MOVE "S" TO WS-ARQUIVO-ABERTO
+    ELSE
+        DISPLAY "Erro ao abrir arquivo. Status: "
+            WS-FILE-STATUS
+    END-IF.    
+
 
 CRIAR-BACKUP.
     MOVE "N" TO WS-BACKUP-OK
@@ -633,106 +800,3 @@ SUBSTITUIR-ARQUIVO.
     END-IF.
 
 
-EXCLUIR-CLIENTE.
-    DISPLAY SPACE
-    DISPLAY "=== EXCLUSAO DE CLIENTE ==="
-    DISPLAY "Digite o codigo do cliente: "
-    ACCEPT WS-CODIGO-ALTERAR
-
-    IF WS-ARQUIVO-ABERTO = "S"
-        CLOSE ARQUIVO-CLIENTES
-        MOVE "N" TO WS-ARQUIVO-ABERTO
-    END-IF
-
-    OPEN INPUT ARQUIVO-CLIENTES
-
-    IF WS-FILE-STATUS NOT = "00"
-        DISPLAY "Erro ao abrir arquivo: " WS-FILE-STATUS
-        EXIT PARAGRAPH
-    END-IF
-
-    OPEN OUTPUT ARQUIVO-TEMPORARIO
-
-    IF WS-STATUS-TEMP NOT = "00"
-        DISPLAY "Erro ao criar arquivo temporario: "
-            WS-STATUS-TEMP
-        CLOSE ARQUIVO-CLIENTES
-        EXIT PARAGRAPH
-    END-IF
-
-    MOVE "N" TO WS-FIM-ARQUIVO
-    MOVE "N" TO WS-CLIENTE-ALTERADO
-    MOVE "N" TO WS-ERRO-ALTERACAO
-
-    PERFORM UNTIL WS-FIM-ARQUIVO = "S"
-        READ ARQUIVO-CLIENTES
-
-        EVALUATE WS-FILE-STATUS
-            WHEN "00"
-                IF ARQ-CODIGO = WS-CODIGO-ALTERAR
-                    MOVE "S" TO WS-CLIENTE-ALTERADO
-                    DISPLAY "Cliente selecionado: " ARQ-NOME
-                ELSE
-                    MOVE ARQ-CODIGO TO TMP-CODIGO
-                    MOVE ARQ-NOME TO TMP-NOME
-                    MOVE ARQ-CPF TO TMP-CPF
-                    MOVE ARQ-TELEFONE TO TMP-TELEFONE
-                    MOVE ARQ-EMAIL TO TMP-EMAIL
-
-                    WRITE REGISTRO-TEMPORARIO
-
-                    IF WS-STATUS-TEMP NOT = "00"
-                        DISPLAY "Erro ao gravar temporario: "
-                            WS-STATUS-TEMP
-                        MOVE "S" TO WS-ERRO-ALTERACAO
-                        MOVE "S" TO WS-FIM-ARQUIVO
-                    END-IF
-                END-IF
-
-            WHEN "10"
-                MOVE "S" TO WS-FIM-ARQUIVO
-
-            WHEN OTHER
-                DISPLAY "Erro ao ler arquivo: "
-                    WS-FILE-STATUS
-                MOVE "S" TO WS-ERRO-ALTERACAO
-                MOVE "S" TO WS-FIM-ARQUIVO
-        END-EVALUATE
-    END-PERFORM
-
-    CLOSE ARQUIVO-CLIENTES
-
-    IF WS-FILE-STATUS NOT = "00"
-        MOVE "S" TO WS-ERRO-ALTERACAO
-    END-IF
-
-    CLOSE ARQUIVO-TEMPORARIO
-
-    IF WS-STATUS-TEMP NOT = "00"
-        MOVE "S" TO WS-ERRO-ALTERACAO
-    END-IF
-
-    IF WS-ERRO-ALTERACAO = "S"
-        DISPLAY "Exclusao cancelada por erro."
-        DISPLAY "Nao execute a substituicao."
-    ELSE
-        IF WS-CLIENTE-ALTERADO = "N"
-            DISPLAY "Cliente nao encontrado."
-        ELSE
-            PERFORM CRIAR-BACKUP
-
-            IF WS-BACKUP-OK = "S"
-                PERFORM SUBSTITUIR-ARQUIVO
-
-                IF WS-SUBSTITUICAO-OK = "S"
-                    DISPLAY "Cliente excluido com sucesso."
-                ELSE
-                    DISPLAY "Exclusao nao concluida."
-                END-IF
-            ELSE
-                DISPLAY "Backup nao validado."
-                DISPLAY "Arquivo original preservado."
-            END-IF
-
-        END-IF
-    END-IF.
